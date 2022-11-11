@@ -33,17 +33,16 @@ def rotate_about_centre(point, centre, angle_in_radians):
 
 class Field:
     def __init__(self):
-        self.image = Image.new("RGB", (FIELD_SIZE, FIELD_SIZE), GRASS_UNCUT_COLOUR)
+        self.screen = pg.display.set_mode((FIELD_SIZE, FIELD_SIZE))
 
     def mow(self):
-        d = ImageDraw.Draw(self.image)
-        d.ellipse(mower.ellipse_bound(), fill=GRASS_CUT_COLOUR, outline=(0, 0, 0))
+        pg.draw.circle(self.screen, (0, 255, 0), mower.centre(), MOWER_DIAMETER / 2)
 
     def show_mower(self):
         x = 1
 
     def show(self):
-        self.image.show()
+        pg.display.update()
 
 
 class Mower:
@@ -51,7 +50,7 @@ class Mower:
 
         self.right_back = np.array([0, 0], dtype=float)
         self.left_back = np.array([MOWER_DIAMETER, 0], dtype=float)
-        self.steer_angle_in_degrees = 10
+        self.steer_angle_in_degrees = -10
 
     def left_front(self):
         left_front_x = self.left_back[0] + (self.left_back[1] - self.right_back[1])
@@ -124,60 +123,26 @@ class Mower:
             self.steer_angle_in_degrees += delta_angle_in_degrees
 
 
-def drive_and_show(speed, delta_angle_in_degrees):
+def drive_and_show(field, speed, delta_angle_in_degrees):
     mower.steer(delta_angle_in_degrees)
     mower.drive(speed)
-    field.mow()
-    field.show()
+    pg.draw.circle(field, (0, 255, 0), mower.centre(), MOWER_DIAMETER / 2)
     print(mower.ellipse_bound(), mower.steer_angle_in_degrees)
+    pg.display.update()
 
 
-def pil_image_to_surface(pil_image):
-    # Converts a PIL image to one usable in pygame
-    return pg.image.fromstring(
-        pil_image.tobytes(), pil_image.size, pil_image.mode).convert()
-
-pg.init()
-screen = pg.display.set_mode((FIELD_SIZE, FIELD_SIZE))
-
-
-field = Field()
+# field = Field()
 mower = Mower()
+# Initialise pygame
+pg.init()
+field = pg.display.set_mode((FIELD_SIZE, FIELD_SIZE))
 
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, -10)
-drive_and_show(SPEED, -10)
-drive_and_show(SPEED, -10)
-drive_and_show(SPEED, -10)
-drive_and_show(SPEED, -10)
-drive_and_show(SPEED, -10)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-drive_and_show(SPEED, 0)
-
-
+done = False
+while not done:
+    for event in pg.event.get():
+        if event.type == pg.QUIT:
+            done = True
+    drive_and_show(field, SPEED, 0)
 
 
 
