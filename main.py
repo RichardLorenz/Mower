@@ -14,39 +14,57 @@ MAX_STEER_ANGLE_CHANGE = 10
 MAX_STEER_ANGLE = 80
 
 
-def coord_add(p1, p2):
-    return [p1[0] + p2[0], p1[1] + p2[1]]
+class Coord:
+
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+    def __add__(self, p):
+        return [self.x + p.x, self.y + p.y]
+
+    def mult(self, p, m):
+        return [p[0] * m[0][0] + p[1] * m[0][1],
+                p[0] * m[1][0] + p[1] * m[1][1]]
+
+    def rot(self, p, a):
+        # Note: a is in radians
+        m = [[math.cos(a), math.sin(a)], [-math.sin(a), math.cos(a)]]
+        return coord_mult(p, m)
+
+    def list_rot(self, lst, a):
+        l2 = []
+        for p in lst:
+            l2.append(coord_rot(p, a))
+        return l2
+
+    def list_add(self, lst, a):
+        l2 = []
+        for p in lst:
+            l2.append(coord_add(p, a))
+        return l2
 
 
-def coord_mult(p, m):
-    return [p[0] * m[0][0] + p[1] * m[0][1],
-            p[0] * m[1][0] + p[1] * m[1][1]]
+def rotate_about_centre(point, centre, angle_in_radians):
+    # angle_in_radians = (angle_in_degrees / 180) * math.pi
 
+    # Set up the rotation matrix
+    rotation_matrix = np.array([[math.cos(angle_in_radians), math.sin(angle_in_radians)],
+                                [-math.sin(angle_in_radians), math.cos(angle_in_radians)]])
 
-def coord_rot(p, a):
-    # Note: a is in radians
-    m = [[math.cos(a), math.sin(a)], [-math.sin(a), math.cos(a)]]
-    return coord_mult(p, m)
+    translated_point = point - centre
 
+    rotated_point = np.matmul(translated_point, rotation_matrix)
 
-def coord_list_rot(lst, a):
-    l2 = []
-    for p in lst:
-        l2.append(coord_rot(p, a))
-    return l2
+    translate_back = rotated_point + centre
 
-
-def coord_list_add(lst, a):
-    l2 = []
-    for p in lst:
-        l2.append(coord_add(p, a))
-    return l2
+    return translate_back
 
 
 class Mower:
     def __init__(self):
 
-        self.centre = (MOWER_DIAMETER / 2, MOWER_DIAMETER / 2)
+        self.centre = [MOWER_DIAMETER / 2, MOWER_DIAMETER / 2]
         self.angle_in_degrees = 0
         self.wheel_angle_in_degrees = -10
         self.base = pg.Surface([MOWER_DIAMETER, MOWER_DIAMETER], pg.SRCALPHA, 32)
@@ -68,6 +86,18 @@ class Mower:
                      (MOWER_DIAMETER - WHEEL_SIZE[0], 0) + WHEEL_SIZE)
         self.base = mower_base
 
+    def right_back(self):
+        rb = [MOWER_DIAMETER/2, MOWER_DIAMETER/2]
+        rb = coord_rot(rb, self.angle_in_degrees)
+        rb = coord_add(rb, self.centre)
+        return rb
+
+    def left_back(self):
+        lb = [-MOWER_DIAMETER/2, -MOWER_DIAMETER/2]
+        lb = coord_rot(lb, self.angle_in_degrees)
+        lb = coord_add(lb, self.centre)
+        return lb
+
     def build_image(self):
         # Get the base image
         mower_img = self.base
@@ -87,6 +117,58 @@ class Mower:
         mower_img.blit(wheel_img, (WHEEL_SIZE[0] / 2 + MOWER_DIAMETER + 1, WHEEL_SIZE[1] / 2 + 1))
 
         self.image = mower_img
+
+    def drive(self, direction_and_speed):
+        # Change to radians
+        steering_angle_in_radians_abs = abs(math.radians(self.steer_angle_in_degrees))
+
+        # Calculate the rotational centre point based on the steering angle
+        pivot_ratio = math.tan(math.pi / 2 - abs(steering_angle_in_radians_abs))
+
+        if self.steer_angle_in_degrees > 0:
+
+            # Calculate the centre point about which the mower will turn
+            centre = self.right_back() + pivot_ratio * coord_add(self.right_back(), -1 * self.left_back())
+            # this centre is not the correct centre if the angle is negative or if the mower is heading down
+            # It's just used to get the correct rotational angle below
+
+            # Calculate the rotation angle based on the far back wheel moving SPEED
+            # (negative because turning clockwise)
+            rotational_angle_in_radians = 2 * math.atan(
+                (SPEED / 2) / (MOWER_DIAMETER + MOWER_DIAMETER * pivot_ratio))
+
+        elif self.steer_angle_in_degrees < 0:
+
+            # Calculate the centre point about which the mower will turn
+            centre = self.left_back + pivot_ratio * (self.left_back - self.right_back)
+
+            # Calculate the rotation angle based on the far back wheel moving SPEED
+            # (positive because turning anti-clockwise)
+            rotational_angle_in_radians = -2 * math.atan(
+                (SPEED / 2) / (MOWER_DIAMETER + MOWER_DIAMETER * pivot_ratio))
+
+        else:
+            centre = np.array([0, 0], dtype=float)
+            rotational_angle_in_radians = 0
+
+        new_left_back = rotate_about_centre(self.left_back, centre, rotational_angle_in_radians)
+        new_right_back = rotate_about_centre(self.right_back, centre, rotational_angle_in_radians)
+
+        self.left_back = new_left_back
+        self.right_back = new_right_back
+
+    def steer(self, delta_angle_in_degrees):
+        if delta_angle_in_degrees > MAX_STEER_ANGLE_CHANGE:
+            delta_angle_in_degrees = MAX_STEER_ANGLE_CHANGE
+        if delta_angle_in_degrees < -MAX_STEER_ANGLE_CHANGE:
+            delta_angle_in_degrees = -MAX_STEER_ANGLE_CHANGE
+
+        if (self.steer_angle_in_degrees + delta_angle_in_degrees) > MAX_STEER_ANGLE:
+            self.steer_angle_in_degrees = MAX_STEER_ANGLE
+        elif (self.steer_angle_in_degrees + delta_angle_in_degrees) < -MAX_STEER_ANGLE:
+            self.steer_angle_in_degrees = -MAX_STEER_ANGLE
+        else:
+            self.steer_angle_in_degrees += delta_angle_in_degrees
 
 
 class Field:
