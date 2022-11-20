@@ -208,7 +208,7 @@ class Field:
         return count
 
     def mow(self, this_mower):
-        pg.draw.circle(self.grass, GRASS_CUT_COLOUR, this_mower.centre, MOWER_DIAMETER / 2)
+        pg.draw.circle(self.grass, GRASS_CUT_COLOUR, this_mower.centre.coord(), MOWER_DIAMETER / 2)
 
 
 pg.init()
@@ -235,7 +235,7 @@ while run:
     keys = pg.key.get_pressed()
 
     # Mow the field where the mower is now
-    field.mow()
+    field.mow(mower)
 
     # Now move the mower
     if keys[pg.K_q]:
