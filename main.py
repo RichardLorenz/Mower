@@ -1,10 +1,9 @@
 import pygame as pg
 import math
 
-
 MOWER_DIAMETER = 40
 WHEEL_SIZE = (8, 14)
-WHEEL_COLOUR = (0, 100, 100)
+WHEEL_COLOUR = (5, 5, 5)
 MOWER_COLOUR = (200, 0, 0)
 FIELD_SIZE = (640, 480)
 GRASS_UNCUT_COLOUR = (0, 100, 0)
@@ -20,51 +19,62 @@ class Coord:
         self.x = x
         self.y = y
 
+    def coord(self):
+        return [self.x, self.y]
+
     def __add__(self, p):
-        return [self.x + p.x, self.y + p.y]
+        return Coord(self.x + p.x, self.y + p.y)
 
-    def mult(self, p, m):
-        return [p[0] * m[0][0] + p[1] * m[0][1],
-                p[0] * m[1][0] + p[1] * m[1][1]]
+    def __sub__(self, p):
+        return Coord(self.x - p.x, self.y - p.y)
 
-    def rot(self, p, a):
+    def __mul__(self, m):
+        return Coord(self.x * m, self.y * m)
+
+    def mat_mul(self, mat):
+        return Coord(self.x * mat[0][0] + self.y * mat[0][1],
+                     self.x * mat[1][0] + self.y * mat[1][1])
+
+    def rot(self, a):
         # Note: a is in radians
-        m = [[math.cos(a), math.sin(a)], [-math.sin(a), math.cos(a)]]
-        return coord_mult(p, m)
+        mat = [[math.cos(a), math.sin(a)], [-math.sin(a), math.cos(a)]]
+        return self.mat_mul(mat)
 
-    def list_rot(self, lst, a):
-        l2 = []
-        for p in lst:
-            l2.append(coord_rot(p, a))
-        return l2
+    def __repr__(self):
+        return "".join(["Point(", str(self.x), ",", str(self.y), ")"])
 
-    def list_add(self, lst, a):
-        l2 = []
-        for p in lst:
-            l2.append(coord_add(p, a))
-        return l2
+    def rotate_about_centre(self, centre, angle_in_radians):
+        # Set up the rotation matrix
+        rotation_matrix = [[math.cos(angle_in_radians), math.sin(angle_in_radians)],
+                           [-math.sin(angle_in_radians), math.cos(angle_in_radians)]]
+
+        translated_point = self - centre
+
+        rotated_point = translated_point.mat_mul(rotation_matrix)
+
+        translate_back = rotated_point + centre
+
+        return translate_back
 
 
-def rotate_about_centre(point, centre, angle_in_radians):
-    # angle_in_radians = (angle_in_degrees / 180) * math.pi
+def list_rot(lst, angle_in_radians):
+    l2 = []
+    for p in lst:
+        l2.append(p.rot(angle_in_radians))
+    return l2
 
-    # Set up the rotation matrix
-    rotation_matrix = np.array([[math.cos(angle_in_radians), math.sin(angle_in_radians)],
-                                [-math.sin(angle_in_radians), math.cos(angle_in_radians)]])
 
-    translated_point = point - centre
-
-    rotated_point = np.matmul(translated_point, rotation_matrix)
-
-    translate_back = rotated_point + centre
-
-    return translate_back
+def list_add(lst, translation):
+    l2 = []
+    for p in lst:
+        l2.append(p + translation)
+    return l2
 
 
 class Mower:
     def __init__(self):
 
-        self.centre = [MOWER_DIAMETER / 2, MOWER_DIAMETER / 2]
+        self.centre = Coord(MOWER_DIAMETER / 2, MOWER_DIAMETER / 2)
         self.angle_in_degrees = 0
         self.wheel_angle_in_degrees = -10
         self.base = pg.Surface([MOWER_DIAMETER, MOWER_DIAMETER], pg.SRCALPHA, 32)
@@ -73,7 +83,7 @@ class Mower:
 
     def build_base(self):
         mower_base = pg.Surface([MOWER_DIAMETER, MOWER_DIAMETER], pg.SRCALPHA, 32)
-#        mower_base = mower_base.convert_alpha()
+        #        mower_base = mower_base.convert_alpha()
         # Draw mower body/blade on the mower
         pg.draw.circle(mower_base, (255, 0, 0), (MOWER_DIAMETER / 2, MOWER_DIAMETER / 2), MOWER_DIAMETER / 2)
         # Draw right back wheel on the mower
@@ -87,16 +97,28 @@ class Mower:
         self.base = mower_base
 
     def right_back(self):
-        rb = [MOWER_DIAMETER/2, MOWER_DIAMETER/2]
-        rb = coord_rot(rb, self.angle_in_degrees)
-        rb = coord_add(rb, self.centre)
+        rb = Coord(MOWER_DIAMETER / 2, -MOWER_DIAMETER / 2)
+        rb = rb.rot(self.angle_in_degrees)
+        rb = rb + self.centre
         return rb
 
     def left_back(self):
-        lb = [-MOWER_DIAMETER/2, -MOWER_DIAMETER/2]
-        lb = coord_rot(lb, self.angle_in_degrees)
-        lb = coord_add(lb, self.centre)
+        lb = Coord(-MOWER_DIAMETER / 2, -MOWER_DIAMETER / 2)
+        lb = lb.rot(self.angle_in_degrees)
+        lb = lb + self.centre
         return lb
+
+    def right_front(self):
+        rf = Coord(MOWER_DIAMETER / 2, MOWER_DIAMETER / 2)
+        rf = rf.rot(self.angle_in_degrees)
+        rf = rf + self.centre
+        return rf
+
+    def left_front(self):
+        lf = Coord(-MOWER_DIAMETER / 2, MOWER_DIAMETER / 2)
+        lf = lf.rot(self.angle_in_degrees)
+        lf = lf + self.centre
+        return lf
 
     def build_image(self):
         # Get the base image
@@ -111,36 +133,35 @@ class Mower:
         wheel_img = pg.transform.rotate(wheel_img, math.radians(self.wheel_angle_in_degrees))
 
         # Draw right front wheel on the mower
-        mower_img.blit(wheel_img, (WHEEL_SIZE[0] / 2 + 1, WHEEL_SIZE[1] / 2 + 1))
+        mower_img.blit(wheel_img, self.right_front().coord())
 
         # Draw left front wheel on the mower
-        mower_img.blit(wheel_img, (WHEEL_SIZE[0] / 2 + MOWER_DIAMETER + 1, WHEEL_SIZE[1] / 2 + 1))
+        mower_img.blit(wheel_img, self.left_front().coord())
 
         self.image = mower_img
 
-    def drive(self, direction_and_speed):
+    def drive(self):
         # Change to radians
-        steering_angle_in_radians_abs = abs(math.radians(self.steer_angle_in_degrees))
+        steering_angle_in_radians_abs = abs(math.radians(self.wheel_angle_in_degrees))
 
         # Calculate the rotational centre point based on the steering angle
         pivot_ratio = math.tan(math.pi / 2 - abs(steering_angle_in_radians_abs))
 
-        if self.steer_angle_in_degrees > 0:
+        if self.wheel_angle_in_degrees > 0:
 
             # Calculate the centre point about which the mower will turn
-            centre = self.right_back() + pivot_ratio * coord_add(self.right_back(), -1 * self.left_back())
+            centre = self.right_back() + (self.right_back() - self.left_back()) * pivot_ratio
             # this centre is not the correct centre if the angle is negative or if the mower is heading down
             # It's just used to get the correct rotational angle below
 
             # Calculate the rotation angle based on the far back wheel moving SPEED
-            # (negative because turning clockwise)
             rotational_angle_in_radians = 2 * math.atan(
                 (SPEED / 2) / (MOWER_DIAMETER + MOWER_DIAMETER * pivot_ratio))
 
-        elif self.steer_angle_in_degrees < 0:
+        elif self.wheel_angle_in_degrees < 0:
 
             # Calculate the centre point about which the mower will turn
-            centre = self.left_back + pivot_ratio * (self.left_back - self.right_back)
+            centre = self.left_back() + (self.left_back() - self.right_back()) * pivot_ratio
 
             # Calculate the rotation angle based on the far back wheel moving SPEED
             # (positive because turning anti-clockwise)
@@ -148,27 +169,28 @@ class Mower:
                 (SPEED / 2) / (MOWER_DIAMETER + MOWER_DIAMETER * pivot_ratio))
 
         else:
-            centre = np.array([0, 0], dtype=float)
+            centre = Coord(0, 0)
             rotational_angle_in_radians = 0
 
-        new_left_back = rotate_about_centre(self.left_back, centre, rotational_angle_in_radians)
-        new_right_back = rotate_about_centre(self.right_back, centre, rotational_angle_in_radians)
+        self.centre = self.centre.rotate_about_centre(centre, rotational_angle_in_radians)
 
-        self.left_back = new_left_back
-        self.right_back = new_right_back
+        new_left_back = self.left_back().rotate_about_centre(centre, rotational_angle_in_radians)
+        new_left_front = self.left_front().rotate_about_centre(centre, rotational_angle_in_radians)
+
+        self.angle_in_degrees = math.degrees(math.atan((new_left_front.x - new_left_back.x) / (new_left_front.y - new_left_back.y)))
 
     def steer(self, delta_angle_in_degrees):
-        if delta_angle_in_degrees > MAX_STEER_ANGLE_CHANGE:
-            delta_angle_in_degrees = MAX_STEER_ANGLE_CHANGE
-        if delta_angle_in_degrees < -MAX_STEER_ANGLE_CHANGE:
-            delta_angle_in_degrees = -MAX_STEER_ANGLE_CHANGE
+        # if delta_angle_in_degrees > MAX_STEER_ANGLE_CHANGE:
+        #     delta_angle_in_degrees = MAX_STEER_ANGLE_CHANGE
+        # if delta_angle_in_degrees < -MAX_STEER_ANGLE_CHANGE:
+        #     delta_angle_in_degrees = -MAX_STEER_ANGLE_CHANGE
 
-        if (self.steer_angle_in_degrees + delta_angle_in_degrees) > MAX_STEER_ANGLE:
-            self.steer_angle_in_degrees = MAX_STEER_ANGLE
-        elif (self.steer_angle_in_degrees + delta_angle_in_degrees) < -MAX_STEER_ANGLE:
-            self.steer_angle_in_degrees = -MAX_STEER_ANGLE
+        if (self.wheel_angle_in_degrees + delta_angle_in_degrees) > MAX_STEER_ANGLE:
+            self.wheel_angle_in_degrees = MAX_STEER_ANGLE
+        elif (self.wheel_angle_in_degrees + delta_angle_in_degrees) < -MAX_STEER_ANGLE:
+            self.wheel_angle_in_degrees = -MAX_STEER_ANGLE
         else:
-            self.steer_angle_in_degrees += delta_angle_in_degrees
+            self.wheel_angle_in_degrees += delta_angle_in_degrees
 
 
 class Field:
@@ -212,6 +234,10 @@ while run:
 
     keys = pg.key.get_pressed()
 
+    # Mow the field where the mower is now
+    field.mow()
+
+    # Now move the mower
     if keys[pg.K_q]:
         screen.blit(mower.base, (0, 0))
     if keys[pg.K_w]:
@@ -224,25 +250,17 @@ while run:
     # if keys[pg.K_t]:
     #     # nothing
     if keys[pg.K_LEFT]:
-        print("keys_x", keys[pg.K_x])
-        pg.draw.rect(field.grass, (0, 0, 255), rect)
-        field.grass.blit(mower.base, (200, 200))
+        mower.steer(-10)
     elif keys[pg.K_RIGHT]:
-        rect.x += (keys[pg.K_RIGHT] - keys[pg.K_LEFT]) * vel
-        rect.y += (keys[pg.K_DOWN] - keys[pg.K_UP]) * vel
-
-        rect.centerx = rect.centerx % field.grass.get_width()
-        rect.centery = rect.centery % field.grass.get_height()
-
-        field.grass.fill(0)
-        pg.draw.rect(field.grass, (255, 0, 0), rect)
+        mower.steer(10)
     elif keys[pg.K_UP]:
-        field.grass.blit(mower.base, (300, 300))
-    elif keys[pg.K_DOWN]:
-        mower.build_image()
-        field.grass.blit(mower.image, (400, 400))
-    else:
-        pg.display.flip()
+        mower.drive()
+
+    mower.build_image()
+    screen.blit(field.grass, screen.get_rect().center)
+    screen.blit(mower.image, (mower.centre.x, mower.centre.y))
+    field.grass.blit(mower.image, (400, 400))
+    pg.display.flip()
 
 pg.quit()
 exit()
