@@ -1,3 +1,5 @@
+import time
+
 import pygame as pg
 import math
 
@@ -224,42 +226,50 @@ vel = 5
 
 run = True
 while run:
-    clock.tick(1000)
+    clock.tick(2000)
     for event in pg.event.get():
         if event.type == pg.QUIT:
             run = False
         if event.type == pg.KEYDOWN:
-            screen.blit(field.grass, (0, 0))
-            print(pg.key.name(event.key))
+            time.sleep(0.1)
+            # print(pg.key.name(event.key))
 
     keys = pg.key.get_pressed()
 
-    # Mow the field where the mower is now
-    field.mow(mower)
-
-    # Now move the mower
+    # Now control the mower
     if keys[pg.K_q]:
-        screen.blit(mower.base, (0, 0))
+        screen.blit(field.grass, screen.get_rect().center)
     if keys[pg.K_w]:
-        screen.blit(mower.image, (0, 0))
+        mower.build_image()
+        screen.blit(mower.image, (mower.centre.x, mower.centre.y))
     if keys[pg.K_e]:
         field.mow(mower)
     if keys[pg.K_r]:
-        print("r")
         screen.blit(field.grass, (0, 0))
-    # if keys[pg.K_t]:
-    #     # nothing
+    if keys[pg.K_t]:
+        pg.draw.circle(field.grass, GRASS_CUT_COLOUR, mower.centre.coord(), MOWER_DIAMETER / 2)
     if keys[pg.K_LEFT]:
         mower.steer(-10)
-    elif keys[pg.K_RIGHT]:
+    if keys[pg.K_RIGHT]:
         mower.steer(10)
-    elif keys[pg.K_UP]:
+    if keys[pg.K_UP]:
+        # Mow the field where the mower is now
+        # field.mow(mower)
+        pg.draw.circle(field.grass, GRASS_CUT_COLOUR, mower.centre.coord(), MOWER_DIAMETER / 2)
         mower.drive()
+        print("screen center: ", screen.get_rect().center)
+        screen.blit(field.grass, (0, 0))
+        screen.blit(mower.image, (mower.centre - Coord(mower.image.get_width() / 2, mower.image.get_height() / 2)).coord())
 
-    mower.build_image()
-    screen.blit(field.grass, screen.get_rect().center)
-    screen.blit(mower.image, (mower.centre.x, mower.centre.y))
-    field.grass.blit(mower.image, (400, 400))
+    # # Show the cut grass
+    # screen.blit(field.grass, screen.get_rect().center)
+    # # Load the mower image on top
+    # mower.build_image()
+    # screen.blit(mower.image, (mower.centre.x, mower.centre.y))
+    # # print(mower.centre.x, mower.centre.y, mower.centre.coord())
+
+    # Display the window
+    pg.display.set_caption("Mower", "Mow")
     pg.display.flip()
 
 pg.quit()
