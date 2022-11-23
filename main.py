@@ -76,7 +76,7 @@ def list_add(lst, translation):
 class Mower:
     def __init__(self):
 
-        self.centre = Coord(MOWER_DIAMETER / 2, MOWER_DIAMETER / 2)
+        self.centre = Coord(60, 60)
         self.angle_in_degrees = 0
         self.wheel_angle_in_degrees = -10
         self.base = pg.Surface([MOWER_DIAMETER, MOWER_DIAMETER], pg.SRCALPHA, 32)
@@ -123,22 +123,30 @@ class Mower:
         return lf
 
     def build_image(self):
-        # Get the base image
-        mower_img = self.base
+        # Create a larger surface to accommodate turned wheels
+        mower_img = pg.Surface([MOWER_DIAMETER + 20, MOWER_DIAMETER + 20], pg.SRCALPHA, 32)
+        # Put the bsae mower image on there in the middle
+        mower_img.blit(self.base, (10, 10))
 
-        # Create a rotated front wheel image
-        wheel_img = pg.Surface([WHEEL_SIZE[0] + 2, WHEEL_SIZE[1] + 2], pg.SRCALPHA, 32)
+        # Create a rotated front wheel image; make it larger to accommodate turning
+        wheel_img = pg.Surface([WHEEL_SIZE[0] + 6, WHEEL_SIZE[1] + 6], pg.SRCALPHA, 32)
         wheel_img = wheel_img.convert_alpha()
         pg.draw.rect(wheel_img,
                      WHEEL_COLOUR,
-                     (1, 1) + WHEEL_SIZE)
+                     (3, 3) + (WHEEL_SIZE[0] + 3, WHEEL_SIZE[1] + 3))
         wheel_img = pg.transform.rotate(wheel_img, math.radians(self.wheel_angle_in_degrees))
+        # wheel_img = pg.transform.rotate(wheel_img, math.radians(self.angle_in_degrees))
+        # TODO: Fix this - should rotate about mower centre, not about zero; WAIT mower not yet rotated??
 
         # Draw right front wheel on the mower
-        mower_img.blit(wheel_img, self.right_front().coord())
+        mower_img.blit(wheel_img, (self.right_front().x, self.right_front().y))
+        # TODO: Fix the blit coordinates - need to be not the centre but the corner
 
         # Draw left front wheel on the mower
         mower_img.blit(wheel_img, self.left_front().coord())
+
+        # Now rotate mower image
+        mower_img = pg.transform.rotate(mower_img, math.radians(self.angle_in_degrees))
 
         self.image = mower_img
 
@@ -179,7 +187,8 @@ class Mower:
         new_left_back = self.left_back().rotate_about_centre(centre, rotational_angle_in_radians)
         new_left_front = self.left_front().rotate_about_centre(centre, rotational_angle_in_radians)
 
-        self.angle_in_degrees = math.degrees(math.atan((new_left_front.x - new_left_back.x) / (new_left_front.y - new_left_back.y)))
+        self.angle_in_degrees = math.degrees(math.atan((new_left_front.x - new_left_back.x) /
+                                                       (new_left_front.y - new_left_back.y)))
 
     def steer(self, delta_angle_in_degrees):
         # if delta_angle_in_degrees > MAX_STEER_ANGLE_CHANGE:
@@ -259,6 +268,7 @@ while run:
         mower.drive()
         print("screen center: ", screen.get_rect().center)
         screen.blit(field.grass, (0, 0))
+        mower.build_image()
         screen.blit(mower.image, (mower.centre - Coord(mower.image.get_width() / 2, mower.image.get_height() / 2)).coord())
 
     # # Show the cut grass
